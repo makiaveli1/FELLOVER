@@ -1,3 +1,4 @@
+import contextlib
 import os
 from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QFileDialog, QLabel, QMessageBox, QProgressBar, QPushButton,
@@ -357,6 +358,19 @@ class Extractor(QWidget):
             self.extracted_files = []
             self.show()
 
+    def move_files(self, source_folder, output_folder):
+        for file in os.listdir(source_folder):
+            file_path = os.path.join(source_folder, file)
+
+            if os.path.isfile(file_path):
+                category = self.categorize_mods(file_path)
+                if category:
+                    destination_folder = os.path.join(output_folder, category)
+                    if not os.path.exists(destination_folder):
+                        os.makedirs(destination_folder)
+
+                shutil.move(file_path, os.path.join(destination_folder, file))
+
     def init_checkboxes(self):
         checkboxes_layout = QVBoxLayout()
 
@@ -489,12 +503,18 @@ class Extractor(QWidget):
     def categorize_mods(self, file_path):
         file_name = os.path.basename(file_path)
 
-        for criterion_name, criterion_data in self.criteria.items():
-            if any(fnmatch.fnmatch(file_name, pattern) for pattern in criterion_data["extensions"]):
-                if fnmatch.fnmatch(file_name, criterion_data["pattern"]):
-                    return criterion_name
-
-        return None
+        return next(
+            (
+                criterion_name
+                for criterion_name, criterion_data in self.criteria.items()
+                if any(
+                    fnmatch.fnmatch(file_name, pattern)
+                    for pattern in criterion_data["extensions"]
+                )
+                and fnmatch.fnmatch(file_name, criterion_data["pattern"])
+            ),
+            None,
+        )
 
     def extract_files(self):
         options = QFileDialog.Options()
@@ -531,8 +551,7 @@ class Extractor(QWidget):
             file_path = os.path.join(source_folder, file)
 
             if os.path.isfile(file_path):
-                category = self.categorize_mods(file_path)
-                if category:
+                if category := self.categorize_mods(file_path):
                     destination_folder = os.path.join(output_folder, category)
                     if not os.path.exists(destination_folder):
                         os.makedirs(destination_folder)
@@ -556,15 +575,12 @@ class Extractor(QWidget):
             self.save_custom_criteria()
             QMessageBox.information(
                 self, "Custom Criteria Added", f"Custom criteria '{name}' added successfully.")
-            self.extracted_files = []
-            self.extracted_files.append((file, destination))
+            self.extracted_files = [(file, destination)]
 
     def load_custom_criteria(self):
-        try:
+        with contextlib.suppress(FileNotFoundError):
             with open("custom_criteria.json", "r") as file:
                 self.custom_criteria = json.load(file)
-        except FileNotFoundError:
-            pass
 
     def is_matching_pattern(self, file_name, pattern):
         if "*" in pattern or "?" in pattern:
@@ -578,8 +594,7 @@ class Extractor(QWidget):
             file_path = os.path.join(source_folder, file)
 
             if os.path.isfile(file_path):
-                category = self.categorize_mods(file_path)
-                if category:
+                if category := self.categorize_mods(file_path):
                     destination_folder = os.path.join(output_folder, category)
                     if not os.path.exists(destination_folder):
                         os.makedirs(destination_folder)
@@ -600,75 +615,80 @@ class Extractor(QWidget):
             self, "Select folder to sort")
 
         if self.is_valid_directory(folder):
-            original_locations = {}
-            for name, value in list(self.__dict__.items()):
-                if isinstance(value, Location):
-                    original_locations[name] = value
-
-            # Define a priority list for sorting
-            priority_list = ["Mods", "Tray", "Archives"]
-
-            # Sort the priority list based on the selected criteria
-            priority_list = [
-                key for key in priority_list if key in selected_criteria]
-
-            # Sort files into subfolders based on names
-            grouped_files = {}
-
-            for entry in Path(folder).glob('*'):
-                if entry.is_file():
-                    # Sort by priority, based on the selected criteria
-                    for key in priority_list:
-                        if any(ext in entry.suffix for ext in selected_criteria[key]):
-                            group_name = key
-                            break
-                    else:
-                        group_name = os.path.splitext(entry.name)[0]
-                    # Apply custom criteria
-                    for custom_name, custom_criteria in self.custom_criteria.items():
-                        extensions = custom_criteria["extensions"]
-                        pattern = custom_criteria["pattern"]
-
-                        if any(ext in entry.suffix for ext in extensions) or self.is_matching_pattern(entry.name, pattern):
-                            group_name = custom_name
-                            break
-                    # Create a new group if it doesn't exist
-                    if group_name not in grouped_files:
-                        grouped_files[group_name] = []
-
-                    # Find the best group for the current file
-                    best_group = self.find_best_group(
-                        entry.name, grouped_files[group_name])
-
-                    if not best_group:
-                        best_group = {
-                            "name": group_name,
-                            "files": []
-                        }
-                        grouped_files[group_name].append(best_group)
-
-                    best_group["files"].append(entry)
-
-            # Move files to subfolders based on their group
-            for group_name, groups in grouped_files.items():
-                for group in groups:
-                    destination_folder = os.path.join(folder, group["name"])
-                    if not os.path.exists(destination_folder):
-                        os.makedirs(destination_folder)
-
-                    for file in group["files"]:
-                        original_locations[str(file)] = folder
-                        shutil.move(str(file), os.path.join(
-                            destination_folder, file.name))
-
-            self.status_label.setText("Files sorted successfully.")
-            self.undo_button.setEnabled(True)
-
-            self.destination_folders.append(original_locations)
+            self._extracted_from_sort_files_(selected_criteria, folder)
         else:
             QMessageBox.critical(
                 self, "Error", "Please select a valid folder to sort.")
             self.status_label.setText("Please select a valid folder to sort.")
+
+    # TODO Rename this here and in `sort_files`
+    def _extracted_from_sort_files_(self, selected_criteria, folder):
+        # sourcery skip: low-code-quality
+        original_locations = {
+            name: value
+            for name, value in list(self.__dict__.items())
+            if isinstance(value, Location)
+        }
+        # Define a priority list for sorting
+        priority_list = ["Mods", "Tray", "Archives"]
+
+        # Sort the priority list based on the selected criteria
+        priority_list = [
+            key for key in priority_list if key in selected_criteria]
+
+        # Sort files into subfolders based on names
+        grouped_files = {}
+
+        for entry in Path(folder).glob('*'):
+            if entry.is_file():
+                # Sort by priority, based on the selected criteria
+                for key in priority_list:
+                    if any(ext in entry.suffix for ext in selected_criteria[key]):
+                        group_name = key
+                        break
+                else:
+                    group_name = os.path.splitext(entry.name)[0]
+                # Apply custom criteria
+                for custom_name, custom_criteria in self.custom_criteria.items():
+                    extensions = custom_criteria["extensions"]
+                    pattern = custom_criteria["pattern"]
+
+                    if any(ext in entry.suffix for ext in extensions) or self.is_matching_pattern(entry.name, pattern):
+                        group_name = custom_name
+                        break
+                # Create a new group if it doesn't exist
+                if group_name not in grouped_files:
+                    grouped_files[group_name] = []
+
+                # Find the best group for the current file
+                best_group = self.find_best_group(
+                    entry.name, grouped_files[group_name])
+
+                if not best_group:
+                    best_group = {
+                        "name": group_name,
+                        "files": []
+                    }
+                    grouped_files[group_name].append(best_group)
+
+                best_group["files"].append(entry)
+
+            # Move files to subfolders based on their group
+        for groups in grouped_files.values():
+            for group in groups:
+                destination_folder = os.path.join(folder, group["name"])
+                if not os.path.exists(destination_folder):
+                    os.makedirs(destination_folder)
+
+                for file in group["files"]:
+                    original_locations[str(file)] = folder
+                    shutil.move(str(file), os.path.join(
+                        destination_folder, file.name))
+
+        self.status_label.setText("Files sorted successfully.")
+        self.undo_button.setEnabled(True)
+
+        self.destination_folders.append(original_locations)
     for file in os.listdir(source_folder):
         file_path = os.path.join(source_folder, file)
 
@@ -708,11 +728,9 @@ class Extractor(QWidget):
                 self, "Custom Criteria Added", f"Custom criteria '{name}' added successfully.")
 
     def load_custom_criteria(self):
-        try:
+        with contextlib.suppress(FileNotFoundError):
             with open("custom_criteria.json", "r") as file:
                 self.custom_criteria = json.load(file)
-        except FileNotFoundError:
-            pass
 
     def save_custom_criteria(self):
         with open("custom_criteria.json", "w") as file:
