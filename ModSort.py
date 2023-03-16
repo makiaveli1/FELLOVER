@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QFileDialog, QLabel, QMessageBox, QProgressBar, QPushButton,
-                            QVBoxLayout, QWidget, QCheckBox, QHBoxLayout, QLineEdit, QDialog, QDialogButtonBox, QGroupBox)
+                             QVBoxLayout, QWidget, QCheckBox, QHBoxLayout, QLineEdit, QDialog, QDialogButtonBox, QGroupBox)
 from PyQt5.QtCore import Qt
 import re
 import shutil
@@ -57,8 +57,6 @@ class CustomCriteriaDialog(QDialog):
 
     def get_values(self):
         return self.name_input.text(), [ext.strip() for ext in self.extensions_input.text().split(',')], self.pattern_input.text()
-
-
 
 
 class Extractor(QWidget):
@@ -230,7 +228,7 @@ class Extractor(QWidget):
             if widget:
                 widget.setParent(None)
 
-        criteria = {
+        self.criteria = {
             'Audio': {
                 'extensions': ['*.mp3', '*.wav', '*.ogg', '*.flac', '*.m4a', '*.aac', '*.wma'],
                 'pattern': 'audio*'
@@ -283,81 +281,81 @@ class Extractor(QWidget):
                 'extensions': ['*.package'],
                 'pattern': 'buildmode_*'
             },
-        }
+        },
         # Add checkboxes
         for key in self.criteria:
             checkbox = QCheckBox(key)
             self.criteria_checkboxes.append(checkbox)
             self.checkboxes_layout.addWidget(checkbox)
 
-        # Initialize treeview
-        tree_view = self.init_tree_view()
-        layout.addWidget(tree_view)
+            # Initialize treeview
+            tree_view = self.init_tree_view()
+            layout.addWidget(tree_view)
 
-        self.tree_view.clicked.connect(self.update_criteria_description)
-        # Group related elements
-        sort_group = QGroupBox("Sort Files")
-        sort_group_layout = QVBoxLayout()
-        sort_group_layout.setSpacing(5)
+            self.tree_view.clicked.connect(self.update_criteria_description)
+            # Group related elements
+            sort_group = QGroupBox("Sort Files")
+            sort_group_layout = QVBoxLayout()
+            sort_group_layout.setSpacing(5)
 
-        # Add checkboxes for sorting criteria
-        checkboxes_layout = self.init_checkboxes()
-        sort_group_layout.addLayout(checkboxes_layout)
+            # Add checkboxes for sorting criteria
+            checkboxes_layout = self.init_checkboxes()
+            sort_group_layout.addLayout(checkboxes_layout)
 
-        self.sort_button = QPushButton("Sort Files")
-        self.sort_button.setToolTip(
-            "Sort files in a selected folder based on specific criteria")
-        self.sort_button.clicked.connect(self.sort_files)
-        sort_group_layout.addWidget(self.sort_button)
+            self.sort_button = QPushButton("Sort Files")
+            self.sort_button.setToolTip(
+                "Sort files in a selected folder based on specific criteria")
+            self.sort_button.clicked.connect(self.sort_files)
+            sort_group_layout.addWidget(self.sort_button)
 
-        sort_group.setLayout(sort_group_layout)
-        layout.addWidget(sort_group)
+            sort_group.setLayout(sort_group_layout)
+            layout.addWidget(sort_group)
 
-        self.edit_custom_criteria_button = QPushButton(
-            "Edit Custom Criteria")
-        self.edit_custom_criteria_button.clicked.connect(
-            self.edit_custom_criteria)
-        layout.addWidget(self.edit_custom_criteria_button)
+            self.edit_custom_criteria_button = QPushButton(
+                "Edit Custom Criteria")
+            self.edit_custom_criteria_button.clicked.connect(
+                self.edit_custom_criteria)
+            layout.addWidget(self.edit_custom_criteria_button)
 
-        self.remove_custom_criteria_button = QPushButton(
-            "Remove Custom Criteria")
-        self.remove_custom_criteria_button.clicked.connect(
-            self.remove_custom_criteria)
-        layout.addWidget(self.remove_custom_criteria_button)
+            self.remove_custom_criteria_button = QPushButton(
+                "Remove Custom Criteria")
+            self.remove_custom_criteria_button.clicked.connect(
+                self.remove_custom_criteria)
+            layout.addWidget(self.remove_custom_criteria_button)
 
-        # Add Extract button
-        self.extract_button = QPushButton("Extract Files")
-        self.extract_button.setToolTip(
-            "Extract selected archive files to a destination folder")
-        self.extract_button.clicked.connect(self.extract_files)
-        layout.addWidget(self.extract_button)
+            # Add Extract button
+            self.extract_button = QPushButton("Extract Files")
+            self.extract_button.setToolTip(
+                "Extract selected archive files to a destination folder")
+            self.extract_button.clicked.connect(self.extract_files)
+            layout.addWidget(self.extract_button)
 
-        # Add Undo button
-        self.undo_button = QPushButton("Undo Last Action")
-        self.undo_button.setEnabled(False)
-        self.undo_button.clicked.connect(self.undo_process)
-        layout.addWidget(self.undo_button)
+            # Add Undo button
+            self.undo_button = QPushButton("Undo Last Action")
+            self.undo_button.setEnabled(False)
+            self.undo_button.clicked.connect(self.undo_process)
+            layout.addWidget(self.undo_button)
 
-        # Add Undo Specific Folder button
-        self.undo_specific_button = QPushButton("Undo Specific Folder")
-        self.undo_specific_button.setEnabled(False)
-        self.undo_specific_button.clicked.connect(self.undo_process)
-        layout.addWidget(self.undo_specific_button)
-        self.undo_button.setEnabled(bool(self.destination_folders))
+            # Add Undo Specific Folder button
+            self.undo_specific_button = QPushButton("Undo Specific Folder")
+            self.undo_specific_button.setEnabled(False)
+            self.undo_specific_button.clicked.connect(self.undo_process)
+            layout.addWidget(self.undo_specific_button)
+            self.undo_button.setEnabled(bool(self.destination_folders))
 
-        # Initialize status label
-        self.status_label = QLabel()
-        layout.addWidget(self.status_label)
+            # Initialize status label
+            self.status_label = QLabel()
+            layout.addWidget(self.status_label)
 
-        # Add "Add Criterion" button
-        self.add_criterion_button = QPushButton("Add Criterion")
-        self.add_criterion_button.clicked.connect(
-            self.add_custom_criterion)
-        layout.addWidget(self.add_criterion_button)
+            # Add "Add Criterion" button
+            self.add_criterion_button = QPushButton("Add Criterion")
+            self.add_criterion_button.clicked.connect(
+                self.add_custom_criterion)
+            layout.addWidget(self.add_criterion_button)
 
-        self.setLayout(layout)
-        self.extracted_files = []
-        self.show()
+            self.setLayout(layout)
+            self.extracted_files = []
+            self.show()
 
     def init_checkboxes(self):
         checkboxes_layout = QVBoxLayout()
@@ -497,7 +495,7 @@ class Extractor(QWidget):
                     return criterion_name
 
         return None
-    
+
     def extract_files(self):
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
@@ -524,7 +522,7 @@ class Extractor(QWidget):
             if not self.is_valid_directory(destination):
                 QMessageBox.warning(self, "Invalid Directory",
                                     "Please select a valid destination folder.")
-    
+
     def extract_files(self, source_folder, output_folder):
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
@@ -539,7 +537,8 @@ class Extractor(QWidget):
                     if not os.path.exists(destination_folder):
                         os.makedirs(destination_folder)
 
-                    shutil.move(file_path, os.path.join(destination_folder, file))
+                    shutil.move(file_path, os.path.join(
+                        destination_folder, file))
 
         QMessageBox.information(self, "Extraction Complete",
                                 "The files have been extracted and sorted successfully.")
@@ -574,7 +573,7 @@ class Extractor(QWidget):
             return re.match(pattern, file_name)
 
     def sort_files(self):
-        
+
         for file in os.listdir(source_folder):
             file_path = os.path.join(source_folder, file)
 
@@ -585,11 +584,12 @@ class Extractor(QWidget):
                     if not os.path.exists(destination_folder):
                         os.makedirs(destination_folder)
 
-                    shutil.move(file_path, os.path.join(destination_folder, file))
+                    shutil.move(file_path, os.path.join(
+                        destination_folder, file))
 
         # Get the selected criteria based on checked checkboxes
         selected_criteria = {checkbox.text(): self.criteria[checkbox.text()]
-                            for checkbox in self.criteria_checkboxes if checkbox.isChecked()}
+                             for checkbox in self.criteria_checkboxes if checkbox.isChecked()}
 
         if not selected_criteria:
             QMessageBox.warning(
