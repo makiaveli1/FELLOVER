@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QFileDialog, QLabel, QMessageBox, QProgressBar, QPushButton,
-                             QVBoxLayout, QWidget, QCheckBox, QHBoxLayout, QLineEdit, QDialog, QDialogButtonBox, QGroupBox)
+                            QVBoxLayout, QWidget, QCheckBox, QHBoxLayout, QLineEdit, QDialog, QDialogButtonBox, QGroupBox)
 from PyQt5.QtCore import Qt
 import re
 import shutil
@@ -57,6 +57,8 @@ class CustomCriteriaDialog(QDialog):
 
     def get_values(self):
         return self.name_input.text(), [ext.strip() for ext in self.extensions_input.text().split(',')], self.pattern_input.text()
+
+
 
 
 class Extractor(QWidget):
@@ -486,6 +488,16 @@ class Extractor(QWidget):
     def is_valid_directory(self, directory):
         return os.path.isdir(directory)
 
+    def categorize_mods(self, file_path):
+        file_name = os.path.basename(file_path)
+
+        for criterion_name, criterion_data in self.criteria.items():
+            if any(fnmatch.fnmatch(file_name, pattern) for pattern in criterion_data["extensions"]):
+                if fnmatch.fnmatch(file_name, criterion_data["pattern"]):
+                    return criterion_name
+
+        return None
+    
     def extract_files(self):
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
@@ -512,33 +524,25 @@ class Extractor(QWidget):
             if not self.is_valid_directory(destination):
                 QMessageBox.warning(self, "Invalid Directory",
                                     "Please select a valid destination folder.")
+    
+    def extract_files(self, source_folder, output_folder):
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
 
-    def _extract_files(self, files, destination):
-        for index, file in enumerate(files):
-            try:
-                # Try extracting using pyunpack
-                Archive(file).extractall(destination)
-            except Exception as e:
-                print(f"Failed to extract using pyunpack: {e}")
+        for file in os.listdir(source_folder):
+            file_path = os.path.join(source_folder, file)
 
-                # Fallback to zipfile and rarfile libraries
-                try:
-                    if zipfile.is_zipfile(file):
-                        with zipfile.ZipFile(file, 'r') as zip_ref:
-                            zip_ref.extractall(destination)
-                    elif rarfile.is_rarfile(file):
-                        with rarfile.RarFile(file, 'r') as rar_ref:
-                            rar_ref.extractall(destination)
-                    else:
-                        raise Exception("Unsupported file format")
-                except Exception as e:
-                    print(f"Failed to extract using zipfile and rarfile: {e}")
+            if os.path.isfile(file_path):
+                category = self.categorize_mods(file_path)
+                if category:
+                    destination_folder = os.path.join(output_folder, category)
+                    if not os.path.exists(destination_folder):
+                        os.makedirs(destination_folder)
 
-            # Update progress bar
-            total_files = len(files)
-            self.progress_bar.setValue(int((index + 1) / total_files * 100))
+                    shutil.move(file_path, os.path.join(destination_folder, file))
 
-        self.status_label.setText("Files extracted successfully.")
+        QMessageBox.information(self, "Extraction Complete",
+                                "The files have been extracted and sorted successfully.")
 
     def add_custom_criteria(self):
         dialog = CustomCriteriaDialog(self)
@@ -570,9 +574,22 @@ class Extractor(QWidget):
             return re.match(pattern, file_name)
 
     def sort_files(self):
+        
+        for file in os.listdir(source_folder):
+            file_path = os.path.join(source_folder, file)
+
+            if os.path.isfile(file_path):
+                category = self.categorize_mods(file_path)
+                if category:
+                    destination_folder = os.path.join(output_folder, category)
+                    if not os.path.exists(destination_folder):
+                        os.makedirs(destination_folder)
+
+                    shutil.move(file_path, os.path.join(destination_folder, file))
+
         # Get the selected criteria based on checked checkboxes
         selected_criteria = {checkbox.text(): self.criteria[checkbox.text()]
-                             for checkbox in self.criteria_checkboxes if checkbox.isChecked()}
+                            for checkbox in self.criteria_checkboxes if checkbox.isChecked()}
 
         if not selected_criteria:
             QMessageBox.warning(
